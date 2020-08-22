@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 import os
 import traceback
+import pickle
+import types
+import copy
+import sys
+import marshal
 
-VERSION = "0.1"
+VERSION = "0.2"
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
-debugmsg = False#if DEbug Messages are to be shown
+debugmsg = True#if DEbug Messages are to be shown
 jb_builtin_comms = {} #Builtin Commands
 ext_comms = {} #Extension commands
 user = os.environ["USER"]#Current user
@@ -24,6 +29,7 @@ def parse_args(args, commobj):
     and commobj should be the object that represents the command.'''
     args = args.split(" ")
     i = 0
+    olen = len(args)
     while i < len(args):
         debug("Began quote check in parse_args")
         if args[i].startswith("'") or args[i].startswith('"'):
@@ -63,8 +69,12 @@ def parse_args(args, commobj):
             for i in commobj.posargs:
                 num = commobj.posargs.index(i)
                 if args.index(arg) == num:
+                    debug(f"Found posarg {i}: {arg}")
                     parsed[0][i] = arg
                     argindex += 1
+                    break
+            else:
+                argindex += 1
     for i in commobj.posargs:
         if not (i in parsed[0]):
             parsed[0][i] = None
@@ -112,6 +122,43 @@ class JoboxBuiltin:
         optargs = parsed[1]
         self.func(posargs, optargs)
 
+class JoboxExtension(JoboxBuiltin):
+    '''Class for extensions. See EXTENDING.md for more info.'''
+    def __init__(self, codeobj):
+        self.virtglobals = {
+            "JoboxBuiltin": JoboxBuiltin,
+            "JoboxExtension": JoboxExtension,
+            "EXT_OBJ_SELF": self
+        }
+        self.__virtglobals = self.virtglobals
+        exec(codeobj, self.__virtglobals, self.__virtglobals)
+        super().__init__(self.__virtglobals["jobox_call"], self.__virtglobals["jobox_posargs"], self.__virtglobals["jobox_optargs"])
+        self.extshortname = self.__virtglobals["JB_NAME_SHORT"]
+        self.extlongname = self.__virtglobals["JB_NAME_LONG"]
+        self.extversion = self.__virtglobals["JB_VERSION"]
+
+    def __str__(self):
+        return f"JoBox extension\nNAME: {self.extlongname}\nSHORTENED NAME: {self.extshortname}\nVERSION: {self.extversion}"
+
+def install_extension(path):
+    debug(f"Beginning installation of extension at {path}")
+    with open(path, "r") as f:
+        code = compile(f.read(), path, "exec")
+        tmpext = JoboxExtension(code)
+        ok = input(f"You are installing {tmpext.extshortname}-{tmpext.extversion}. Is this okay?(y/N)")
+        if ok == "y":
+            with open(f"/usr/local/lib/jobox/{tmpext.extshortname}", "wb") as f2:
+                marshal.dump(code, f2)
+                print(f"Successfully installed.")
+        else:
+            return
+
+def load_extension(name):
+    with open(f"/usr/local/lib/jobox/{name}", "rb") as f:
+        extensioncode = marshal.load(f)
+        extension = JoboxExtension(extensioncode)
+        ext_comms[name] = extension
+
 def builtin_dec(*args, **kwargs):
     def _bd_wrapper(func):
         jb_builtin_comms[args[0]] = JoboxBuiltin(func, args[1], args[2])
@@ -133,6 +180,10 @@ def exec_command(comm):
         for i in jb_builtin_comms:
             if i == commname:
                 jb_builtin_comms[i](comm)
+                return
+        for i in ext_comms:
+            if i == commname:
+                ext_comms[i](comm)
                 return
         print("Command not found")
     except:
@@ -168,5 +219,21 @@ def _jbdebug_builtin(posargs, optargs):
 def _jbdef_builtin(posargs, optargs):
     envvars[posargs["name"]] = posargs["value"]
 
+@builtin_dec("jbtools", ["command"], {"--install":"str", "--load":"str", "--bootstrap":"bool"})
+def _jbtools_builtin(posargs, optargs):
+    command = posargs["command"]
+    if command == "extension":
+        if optargs["--install"] != None:
+            install_extension(optargs["--install"])
+        elif optargs["--load"] != None:
+            load_extension(optargs["--load"])
+    elif command == "bootstrap":
+        os.mkdir("/usr/local/lib/jobox")
+
+@builtin_dec("exit", [], {})
+def _exit_builtin(posargs, optargs):
+    sys.exit()
+
 if __name__ == "__main__":
     main_cli()
+
