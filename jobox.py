@@ -7,9 +7,10 @@ import copy
 import sys
 import marshal
 
-VERSION = "0.2"
+VERSION = "0.3"
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
+jb_ext_path = "/usr/local/lib/jobox" #Path for JoBox extensions
 debugmsg = True#if DEbug Messages are to be shown
 jb_builtin_comms = {} #Builtin Commands
 ext_comms = {} #Extension commands
@@ -189,12 +190,45 @@ def exec_command(comm):
     except:
         print(f"[{commname}:ERROR]{traceback.format_exc()}")
 
+def exec_script(path):
+    '''Executes a script at path. Self explanatory.'''
+    with open(path, "r") as f:
+        local_script_scope = copy.copy(globals())
+        src = f.read()
+        for i in src.split("\n"):
+            i = i.strip()
+            local_script_scope["_JOBOX_SCRIPT_COMMAND"] = i
+            if i.startswith("#"):
+                continue
+            else:
+                eval("exec_command(_JOBOX_SCRIPT_COMMAND)", local_script_scope)
+
 def main_cli():
     '''Starts the interactive shell.'''
     global user, hostname, home, cwd, fake_cwd
     print(f"JoBox shell version {VERSION}")
     while True:
         exec_command(input(f"{user}@{hostname}:{fake_cwd} J>"))
+
+def main():
+    '''When called, will take sys.argv[0] and use that to call the command based on sys.argv[0]. Checks both builtins and 
+    extensions.'''
+    pname = sys.argv[0]
+    exec_from_args = lambda: exec_command("' '".join(sys.argv))
+    for i in os.listdir(jb_ext_path):
+        if i == pname:
+            exec_from_args()
+    for i in jb_builtin_comms:
+        if i == pname:
+            exec_from_args()
+
+@builtin_dec("jobox", ["fname"], {})
+def _jobox_init_builtin(posargs, optargs):
+    '''This is a special builtin command; it is called when JoBox initializes without a command.'''
+    if posargs["fname"] == None:
+        main_cli()
+    else:
+        exec_script(posargs["fname"])
 
 @builtin_dec("cd", ["dir"], {})
 def _cd_builtin(posargs, optargs):
@@ -235,5 +269,4 @@ def _exit_builtin(posargs, optargs):
     sys.exit()
 
 if __name__ == "__main__":
-    main_cli()
-
+    main()
