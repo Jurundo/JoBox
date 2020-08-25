@@ -7,11 +7,11 @@ import copy
 import sys
 import marshal
 
-VERSION = "0.3"
+VERSION = "0.4-beta"
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
 jb_ext_path = "/usr/local/lib/jobox" #Path for JoBox extensions
-debugmsg = True#if DEbug Messages are to be shown
+debugmsg = False#if DEbug Messages are to be shown
 jb_builtin_comms = {} #Builtin Commands
 ext_comms = {} #Extension commands
 user = os.environ["USER"]#Current user
@@ -34,6 +34,7 @@ def parse_args(args, commobj):
     while i < len(args):
         debug("Began quote check in parse_args")
         if args[i].startswith("'") or args[i].startswith('"'):
+            debug("Quotes found")
             quotet = list(args[i])[0]
             debug(f"quotet={quotet}")
             for j in args[i:]:
@@ -47,12 +48,15 @@ def parse_args(args, commobj):
                     break
         debug("Completed one cycle")
         i += 1
+    debug(f"args={args}")
     parsed = [{}, {}]
     poscounter = 1
     nextopt = False
     argindex = 0
     debug(f"len(args)={len(args)}")
     while argindex < len(args):
+        if args==['']:
+            break
         debug(f"argindex={argindex}")
         arg = args[argindex]
         debug(f"arg={arg}")
@@ -115,10 +119,11 @@ class JoboxBuiltin:
         self.posargs = posargs
         self.optargs = optargs
 
-    def __call__(self, comm):
+    def __call__(self, comm, parsed=None):
         '''Used for when the command is called.'''
         tmpargs = " ".join(comm.split(" ")[1:])
-        parsed = parse_args(tmpargs, self)
+        if parsed == None:
+            parsed = parse_args(tmpargs, self)
         posargs = parsed[0]
         optargs = parsed[1]
         self.func(posargs, optargs)
@@ -170,14 +175,21 @@ def exec_command(comm):
     try:
         comm = eval_stmt_vars(comm)
         commname = comm.split(" ")[0]
-        if ";" in list(comm):
+        if "'" in commname:
+            commname = commname.strip("'")
+            comms = comm.split(' ')
+            comms[0] = commname
+            comm = " ".join(comms)
+        elif ";" in list(comm):
             for i in comm.split(";"):
                 exec_command(i)
+                return
             return
         for i in path:
             for j in os.listdir(i):
                 if j == comm.split(" ")[0]:
                     os.system(f"{i}/{j} {' '.join(comm.split(' ')[1:])}")
+                    return
         for i in jb_builtin_comms:
             if i == commname:
                 jb_builtin_comms[i](comm)
@@ -186,6 +198,8 @@ def exec_command(comm):
             if i == commname:
                 ext_comms[i](comm)
                 return
+        if comm == "":
+            return
         print("Command not found")
     except:
         print(f"[{commname}:ERROR]{traceback.format_exc()}")
@@ -214,13 +228,22 @@ def main():
     '''When called, will take sys.argv[0] and use that to call the command based on sys.argv[0]. Checks both builtins and 
     extensions.'''
     pname = sys.argv[0]
-    exec_from_args = lambda: exec_command("' '".join(sys.argv))
+    exec_from_args = lambda: exec_command("' '".join(sys.argv)+"'")
+    sys.argv[0] = sys.argv[0][0:len(pname)]
+    debug(f"PNAME={sys.argv[0]}")
+    debug("processed command="+str("' '".join(sys.argv)+"'"))
+    debug(f"sys.argv={sys.argv}")
     for i in os.listdir(jb_ext_path):
         if i == pname:
             exec_from_args()
+            break
     for i in jb_builtin_comms:
         if i == pname:
             exec_from_args()
+            break
+    else:
+        print("[JOBOX:WARN]The program name you used to start JoBox is unrecognized; Starting interactive CLI.")
+        main_cli()
 
 @builtin_dec("jobox", ["fname"], {})
 def _jobox_init_builtin(posargs, optargs):
@@ -263,6 +286,11 @@ def _jbtools_builtin(posargs, optargs):
             load_extension(optargs["--load"])
     elif command == "bootstrap":
         os.mkdir("/usr/local/lib/jobox")
+        os.system("cp jobox.py /usr/bin/jobox")
+        os.system("chmod a+x /usr/bin/jobox")
+    elif command == "uninstall":
+        os.rmtree(jb_ext_path)
+        os.system("rm /usr/bin/jobox")
 
 @builtin_dec("exit", [], {})
 def _exit_builtin(posargs, optargs):
