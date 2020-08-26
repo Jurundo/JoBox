@@ -7,7 +7,7 @@ import copy
 import sys
 import marshal
 
-VERSION = "0.4-beta"
+VERSION = "0.5-beta"
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
 jb_ext_path = "/usr/local/lib/jobox" #Path for JoBox extensions
@@ -175,12 +175,7 @@ def exec_command(comm):
     try:
         comm = eval_stmt_vars(comm)
         commname = comm.split(" ")[0]
-        if "'" in commname:
-            commname = commname.strip("'")
-            comms = comm.split(' ')
-            comms[0] = commname
-            comm = " ".join(comms)
-        elif ";" in list(comm):
+        if ";" in list(comm):
             for i in comm.split(";"):
                 exec_command(i)
                 return
@@ -201,7 +196,9 @@ def exec_command(comm):
         if comm == "":
             return
         print("Command not found")
-    except:
+    except SystemExit:
+        sys.exit()
+    except Exception:
         print(f"[{commname}:ERROR]{traceback.format_exc()}")
 
 def exec_script(path):
@@ -227,28 +224,34 @@ def main_cli():
 def main():
     '''When called, will take sys.argv[0] and use that to call the command based on sys.argv[0]. Checks both builtins and 
     extensions.'''
+    has_spaces=[]
     pname = sys.argv[0]
-    exec_from_args = lambda: exec_command("' '".join(sys.argv)+"'")
-    sys.argv[0] = sys.argv[0][0:len(pname)]
-    debug(f"PNAME={sys.argv[0]}")
-    debug("processed command="+str("' '".join(sys.argv)+"'"))
+    for i in sys.argv:
+        if " " in list(i):
+            has_spaces.append(sys.argv.index(i))
+    for j in has_spaces:
+        sys.argv[j] = f"'{sys.argv[j]}'"
+    #debug("processed command="+str("' '".join(sys.argv)+"'"))
     debug(f"sys.argv={sys.argv}")
     for i in os.listdir(jb_ext_path):
         if i == pname:
-            exec_from_args()
+            exec_command(" ".join(sys.argv))
             break
     for i in jb_builtin_comms:
         if i == pname:
-            exec_from_args()
+            exec_command(" ".join(sys.argv))
             break
     else:
         print("[JOBOX:WARN]The program name you used to start JoBox is unrecognized; Starting interactive CLI.")
         main_cli()
 
-@builtin_dec("jobox", ["fname"], {})
+@builtin_dec("jobox", ["fname"], {"-c":"str"})
 def _jobox_init_builtin(posargs, optargs):
     '''This is a special builtin command; it is called when JoBox initializes without a command.'''
-    if posargs["fname"] == None:
+    if optargs["-c"] != None:
+        exec_command(optargs["-c"])
+        sys.exit()
+    elif posargs["fname"] == None:
         main_cli()
     else:
         exec_script(posargs["fname"])
