@@ -7,17 +7,25 @@ import copy
 import sys
 import marshal
 
-VERSION = "0.5-beta"
+VERSION = "0.6-beta"
+JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
 jb_ext_path = "/usr/local/lib/jobox" #Path for JoBox extensions
 debugmsg = False#if DEbug Messages are to be shown
 jb_builtin_comms = {} #Builtin Commands
 ext_comms = {} #Extension commands
-user = os.environ["USER"]#Current user
-hostname = "PLACEHOLDER" #machine hostname
-home = os.environ["HOME"] #user's home directory
-cwd = os.environ["PWD"] #current working directory (real)
+
+#Failsafe try loop in case sudo is used
+try:
+    hostname = "PLACEHOLDER" #machine hostname
+    home = os.environ["HOME"] #user's home directory
+except:
+    hostname = "PLACEHOLDER"
+    home = '/root'
+
+user = os.getlogin()#Current user
+cwd = os.getcwd() #current working directory (real)
 fake_cwd = cwd#displayed current working directory, used for ~ mainly
 envvars = {} #Virtual environment variables
 
@@ -180,11 +188,6 @@ def exec_command(comm):
                 exec_command(i)
                 return
             return
-        for i in path:
-            for j in os.listdir(i):
-                if j == comm.split(" ")[0]:
-                    os.system(f"{i}/{j} {' '.join(comm.split(' ')[1:])}")
-                    return
         for i in jb_builtin_comms:
             if i == commname:
                 jb_builtin_comms[i](comm)
@@ -193,10 +196,16 @@ def exec_command(comm):
             if i == commname:
                 ext_comms[i](comm)
                 return
+        for i in path:
+            for j in os.listdir(i):
+                if j == comm.split(" ")[0]:
+                    os.system(f"{i}/{j} {' '.join(comm.split(' ')[1:])}")
+                    return
         if comm == "":
             return
         print("Command not found")
     except SystemExit:
+        debug("Caught SystemExit")
         sys.exit()
     except Exception:
         print(f"[{commname}:ERROR]{traceback.format_exc()}")
@@ -226,6 +235,8 @@ def main():
     extensions.'''
     has_spaces=[]
     pname = sys.argv[0]
+    if pname in JB_EXEC_NAMES:
+        pname = sys.argv[0]
     for i in sys.argv:
         if " " in list(i):
             has_spaces.append(sys.argv.index(i))
@@ -294,6 +305,16 @@ def _jbtools_builtin(posargs, optargs):
     elif command == "uninstall":
         os.rmtree(jb_ext_path)
         os.system("rm /usr/bin/jobox")
+
+@builtin_dec("sudo", ["command"], {})
+def _sudo_builtin(posargs, optargs):
+    os.system(f"sudo {sys.argv[0]} -c {posargs['command']}")
+
+@builtin_dec("su", ["user"], {})
+def _su_builtin(posargs, optargs):
+    debug("SU called")
+    debug(f"sys.argv[0]={sys.argv[0]}")
+    os.system(f"su -c {sys.argv[0]}")
 
 @builtin_dec("exit", [], {})
 def _exit_builtin(posargs, optargs):
