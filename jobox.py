@@ -7,7 +7,7 @@ import copy
 import sys
 import marshal
 
-VERSION = "0.6-beta"
+VERSION = "0.6.1-beta"
 JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
@@ -236,7 +236,8 @@ def main():
     has_spaces=[]
     pname = sys.argv[0]
     if pname in JB_EXEC_NAMES:
-        pname = sys.argv[0]
+        pname = "jobox"
+        sys.argv[0] = "jobox"
     for i in sys.argv:
         if " " in list(i):
             has_spaces.append(sys.argv.index(i))
@@ -274,7 +275,7 @@ def _cd_builtin(posargs, optargs):
     fake_cwd = cwd
     os.chdir(posargs["dir"])
 
-@builtin_dec("jbdebug", ["action", "arg"], {"--pretty":"bool", "--say":"str"})
+@builtin_dec("jbdebug", ["action", "arg"], {"--pretty":"bool", "--say":"str", "--eval":"str"})
 def _jbdebug_builtin(posargs, optargs):
     global debugmsg
     if posargs["action"] == "msgs":
@@ -284,7 +285,9 @@ def _jbdebug_builtin(posargs, optargs):
             debugmsg = False
     if optargs["--pretty"]:
         print("JOBOX IS PRETTY")
-    print(optargs["--say"])
+    elif optargs["--eval"] != None:
+        print(eval(optargs["--eval"]))
+    print(f"optargs['--say']={optargs['--say']}")
 
 @builtin_dec("jbdef", ["name", "value"], {})
 def _jbdef_builtin(posargs, optargs):
@@ -314,7 +317,10 @@ def _sudo_builtin(posargs, optargs):
 def _su_builtin(posargs, optargs):
     debug("SU called")
     debug(f"sys.argv[0]={sys.argv[0]}")
-    os.system(f"su -c {sys.argv[0]}")
+    user = posargs["user"]
+    if user == None:
+        user = ""
+    os.system(f"su {user} -c {sys.argv[0]}")
 
 @builtin_dec("exit", [], {})
 def _exit_builtin(posargs, optargs):
