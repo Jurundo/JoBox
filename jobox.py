@@ -7,7 +7,9 @@ import copy
 import sys
 import marshal
 
-VERSION = "0.6.1-beta"
+VERSION = "0.6.2-beta"
+REVISION_NUMBER = 8 #Used for checking compatibility
+
 JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
@@ -39,6 +41,8 @@ def parse_args(args, commobj):
     args = args.split(" ")
     i = 0
     olen = len(args)
+    debug(f"commobj.optargs={commobj.optargs}")
+    debug(f"commobj.posargs={commobj.posargs}")
     while i < len(args):
         debug("Began quote check in parse_args")
         if args[i].startswith("'") or args[i].startswith('"'):
@@ -68,16 +72,23 @@ def parse_args(args, commobj):
         debug(f"argindex={argindex}")
         arg = args[argindex]
         debug(f"arg={arg}")
+        debug(f"args={args}")
         if (arg.startswith("-")) or (arg.startswith("--")):
             debug("Began opt check in parse_args")
-            if arg in commobj.optargs:
+            if arg in commobj.optargs.keys():
                 if commobj.optargs[arg] == "bool":
+                    debug("arg type is bool")
                     parsed[1][arg] = True
                     args.pop(argindex)
                 elif commobj.optargs[arg] == "str":
+                    debug("arg type is str")
                     parsed[1][arg] = args[argindex+1]
                     args.pop(argindex)
                     args.pop(argindex)
+                else:
+                    debug("No suitable type found for arg")
+            else:
+                raise Exception(f"\n\nYou used an unknown argument ({arg}) when calling the command.")
         else:
             for i in commobj.posargs:
                 num = commobj.posargs.index(i)
@@ -139,17 +150,20 @@ class JoboxBuiltin:
 class JoboxExtension(JoboxBuiltin):
     '''Class for extensions. See EXTENDING.md for more info.'''
     def __init__(self, codeobj):
-        self.virtglobals = {
+        self.__virtglobals = {
             "JoboxBuiltin": JoboxBuiltin,
             "JoboxExtension": JoboxExtension,
-            "EXT_OBJ_SELF": self
+            "EXT_OBJ_SELF": self,
+            "jobox_install": _null
         }
-        self.__virtglobals = self.virtglobals
         exec(codeobj, self.__virtglobals, self.__virtglobals)
         super().__init__(self.__virtglobals["jobox_call"], self.__virtglobals["jobox_posargs"], self.__virtglobals["jobox_optargs"])
         self.extshortname = self.__virtglobals["JB_NAME_SHORT"]
         self.extlongname = self.__virtglobals["JB_NAME_LONG"]
         self.extversion = self.__virtglobals["JB_VERSION"]
+        self.extinstallf = self.__virtglobals["jobox_install"]
+        self.extminrev = self.__virtglobals["JB_MIN_REV"]
+        self.extmaxrev = self.__virtglobals["JB_MAX_REV"]
 
     def __str__(self):
         return f"JoBox extension\nNAME: {self.extlongname}\nSHORTENED NAME: {self.extshortname}\nVERSION: {self.extversion}"
@@ -159,8 +173,11 @@ def install_extension(path):
     with open(path, "r") as f:
         code = compile(f.read(), path, "exec")
         tmpext = JoboxExtension(code)
+        if (REVISION_NUMBER < tmpext.extminrev) or (REVISION_NUMBER > tmpext.extmaxrev):
+            print(f"You cannot install this extension because you don't have the right version of JoBox installed. It requires a revision between {tmpext.extminrev} and {tmpext.extmaxrev}.")
         ok = input(f"You are installing {tmpext.extshortname}-{tmpext.extversion}. Is this okay?(y/N)")
         if ok == "y":
+            tmpext.extinstallf()
             with open(f"/usr/local/lib/jobox/{tmpext.extshortname}", "wb") as f2:
                 marshal.dump(code, f2)
                 print(f"Successfully installed.")
@@ -226,7 +243,7 @@ def exec_script(path):
 def main_cli():
     '''Starts the interactive shell.'''
     global user, hostname, home, cwd, fake_cwd
-    print(f"JoBox shell version {VERSION}")
+    print(f"JoBox shell version {VERSION} (revision {REVISION_NUMBER})")
     while True:
         exec_command(input(f"{user}@{hostname}:{fake_cwd} J>"))
 
@@ -311,7 +328,7 @@ def _jbtools_builtin(posargs, optargs):
 
 @builtin_dec("sudo", ["command"], {})
 def _sudo_builtin(posargs, optargs):
-    os.system(f"sudo {sys.argv[0]} -c {posargs['command']}")
+    os.system(f"sudo {sys.argv[0]} -c '{posargs['command']}'")
 
 @builtin_dec("su", ["user"], {})
 def _su_builtin(posargs, optargs):
@@ -325,6 +342,10 @@ def _su_builtin(posargs, optargs):
 @builtin_dec("exit", [], {})
 def _exit_builtin(posargs, optargs):
     sys.exit()
+
+def _null(*args, **kwargs):
+    """Placeholder function used if an extension doesnt define one."""
+    pass
 
 if __name__ == "__main__":
     main()
