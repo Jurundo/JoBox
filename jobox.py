@@ -227,6 +227,9 @@ def exec_command(comm):
     except SystemExit:
         debug("Caught SystemExit")
         sys.exit()
+    except KeyboardInterrupt:
+        debug("Caught KeyboardInterrupt")
+        sys.exit()
     except Exception:
         print(f"[{commname}:ERROR]{traceback.format_exc()}")
 
@@ -247,6 +250,8 @@ def main_cli():
     '''Starts the interactive shell.'''
     global user, hostname, home, cwd, fake_cwd
     print(f"JoBox shell version {VERSION} (revision {REVISION_NUMBER})")
+    if not jbsafety:
+        print("WARNING: jbsafety has been disabled.")
     while True:
         exec_command(input(f"{user}@{hostname}:{fake_cwd} J>"))
 
