@@ -7,16 +7,18 @@ import copy
 import sys
 import marshal
 
-VERSION = "0.6.2-beta"
-REVISION_NUMBER = 8 #Used for checking compatibility
+VERSION = "0.6.3-beta"
+REVISION_NUMBER = 9 #Used for checking compatibility
 
 JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
 jb_ext_path = "/usr/local/lib/jobox" #Path for JoBox extensions
-debugmsg = False#if DEbug Messages are to be shown
 jb_builtin_comms = {} #Builtin Commands
 ext_comms = {} #Extension commands
+
+debugmsg = False#if DEbug Messages are to be shown
+jbsafety = True #If some of JoBox's dafety abilities, such as proteching globals from being written to via jbdebug --eval, should be enabled
 
 #Failsafe try loop in case sudo is used
 try:
@@ -198,6 +200,7 @@ def builtin_dec(*args, **kwargs):
 def exec_command(comm):
     '''Executes a command. comm should be a string.'''
     try:
+        comm = comm.strip()
         comm = eval_stmt_vars(comm)
         commname = comm.split(" ")[0]
         if ";" in list(comm):
@@ -274,9 +277,12 @@ def main():
         print("[JOBOX:WARN]The program name you used to start JoBox is unrecognized; Starting interactive CLI.")
         main_cli()
 
-@builtin_dec("jobox", ["fname"], {"-c":"str"})
+@builtin_dec("jobox", ["fname"], {"-c":"str", "--no-safety":"bool"})
 def _jobox_init_builtin(posargs, optargs):
     '''This is a special builtin command; it is called when JoBox initializes without a command.'''
+    global jbsafety
+    if optargs["--no-safety"] != None:
+        jbsafety = False
     if optargs["-c"] != None:
         exec_command(optargs["-c"])
         sys.exit()
@@ -303,7 +309,12 @@ def _jbdebug_builtin(posargs, optargs):
     if optargs["--pretty"]:
         print("JOBOX IS PRETTY")
     elif optargs["--eval"] != None:
-        print(eval(optargs["--eval"]))
+        if jbsafety:
+            virtglobals = copy.copy(globals())
+            virtglobals["exec"] = _null
+        else:
+            virtglobals = globals()
+        print(eval(optargs["--eval"], virtglobals))
     print(f"optargs['--say']={optargs['--say']}")
 
 @builtin_dec("jbdef", ["name", "value"], {})
