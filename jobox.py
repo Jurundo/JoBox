@@ -6,19 +6,28 @@ import types
 import copy
 import sys
 import marshal
+try:
+    import keyboard
+    USE_KEYBOARD = True
+except:
+    print("[JOBOX:WARN] Arrow keys will not work properly unless you are root. You also might not have the keyboard module installed; run sudo python3 -m pip install keyboard if this is the case.")
+    USE_KEYBOARD = False
 
-VERSION = "0.6.3-beta"
-REVISION_NUMBER = 9 #Used for checking compatibility
+VERSION = "0.6.4-beta"
+REVISION_NUMBER = 10 #Used for checking compatibility
 
 JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
+JB_MAX_HISTORY = 20 #Amount of commands to be remembnered in history
 
 path = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"] #PATH
 jb_ext_path = "/usr/local/lib/jobox" #Path for JoBox extensions
 jb_builtin_comms = {} #Builtin Commands
 ext_comms = {} #Extension commands
+jb_mem_history = {} #Command history
 
 debugmsg = False#if DEbug Messages are to be shown
 jbsafety = True #If some of JoBox's dafety abilities, such as proteching globals from being written to via jbdebug --eval, should be enabled
+jb_init_context = "root" #Used to determine whether JoBox is being run inside another JoBox session or not. This is always changed to "nested" after the initial command call.
 
 #Failsafe try loop in case sudo is used
 try:
@@ -200,6 +209,7 @@ def builtin_dec(*args, **kwargs):
 def exec_command(comm):
     '''Executes a command. comm should be a string.'''
     try:
+        add_to_history(comm)
         comm = comm.strip()
         comm = eval_stmt_vars(comm)
         commname = comm.split(" ")[0]
@@ -246,6 +256,19 @@ def exec_script(path):
             else:
                 eval("exec_command(_JOBOX_SCRIPT_COMMAND)", local_script_scope)
 
+def add_to_history(comm):
+    '''Adds comm to jb_mem_history dict, and shifts the rest of the values to accomodate.'''
+    unmodded_history = copy.copy(jb_mem_history)
+    for i in list(range(0, JB_MAX_HISTORY+1))[::-1]:
+        if i in unmodded_history.keys():
+            jb_mem_history[i-1] = unmodded_history[i]
+            if -1 in jb_mem_history.keys():
+                jb_mem_history.pop(-1)
+            debug(f"add_to_history: jb_mem_history[i]={jb_mem_history[i]}")
+        else:
+            break
+    jb_mem_history[JB_MAX_HISTORY] = comm
+
 def main_cli():
     '''Starts the interactive shell.'''
     global user, hostname, home, cwd, fake_cwd
@@ -285,9 +308,16 @@ def main():
 @builtin_dec("jobox", ["fname"], {"-c":"str", "--no-safety":"bool"})
 def _jobox_init_builtin(posargs, optargs):
     '''This is a special builtin command; it is called when JoBox initializes without a command.'''
-    global jbsafety
+    global jbsafety, jb_init_context
     if optargs["--no-safety"] != None:
-        jbsafety = False
+        if jb_init_context == "root":
+            jbsafety = False
+        else:
+            print("jbsafety cannot be disabled if you are nesting JoBox sessions.")
+    jb_init_context = "nested"
+    if jbsafety:
+        JoboxBuiltin.__init__ = _null
+        builtin_dec = _null
     if optargs["-c"] != None:
         exec_command(optargs["-c"])
         sys.exit()
