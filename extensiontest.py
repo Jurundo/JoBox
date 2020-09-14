@@ -1,7 +1,7 @@
 import pickle
 JB_NAME_LONG = "JoBox extension test"
 
-JB_NAME_SHORT = "test"
+JB_NAME_SHORT = "jbtest"
 
 JB_VERSION = "999"
 

@@ -226,18 +226,21 @@ def exec_command(comm):
             if i == commname:
                 ext_comms[i](comm)
                 return
+        for i in os.listdir(jb_ext_path):
+            if i == commname:
+                load_extension(i)
+                exec_command(comm)
+                return
         for i in path:
             for j in os.listdir(i):
                 if j == comm.split(" ")[0]:
                     os.system(f"{i}/{j} {' '.join(comm.split(' ')[1:])}")
                     return
-        for i in os.listdir(jb_ext_path):
-            if i == commname:
-                load_extension(i)
-                exec_command(comm)
         if comm == "":
             return
-        print("Command not found")
+        else:
+            os.system(comm)
+            return
     except SystemExit:
         debug("Caught SystemExit")
         sys.exit()
@@ -285,8 +288,10 @@ def main_cli():
 def main():
     '''When called, will take sys.argv[0] and use that to call the command based on sys.argv[0]. Checks both builtins and 
     extensions.'''
+    global pname
     has_spaces=[]
-    pname = sys.argv[0]
+    pname = sys.argv[0].split("/")[-1]
+    sys.argv[0] = pname
     if pname in JB_EXEC_NAMES:
         pname = "jobox"
         sys.argv[0] = "jobox"
@@ -300,11 +305,11 @@ def main():
     for i in os.listdir(jb_ext_path):
         if i == pname:
             exec_command(" ".join(sys.argv))
-            break
+            return
     for i in jb_builtin_comms:
         if i == pname:
             exec_command(" ".join(sys.argv))
-            break
+            return
     else:
         print("[JOBOX:WARN]The program name you used to start JoBox is unrecognized; Starting interactive CLI.")
         main_cli()
