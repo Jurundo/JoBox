@@ -13,8 +13,8 @@ except:
     print("[JOBOX:WARN] Arrow keys will not work properly unless you are root. You also might not have the keyboard module installed; run sudo python3 -m pip install keyboard if this is the case.")
     USE_KEYBOARD = False
 
-VERSION = "0.6.5-beta"
-REVISION_NUMBER = 11 #Used for checking compatibility
+VERSION = "0.6.6-beta"
+REVISION_NUMBER = 12 #Used for checking compatibility
 
 JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
 JB_MAX_HISTORY = 20 #Amount of commands to be remembnered in history
@@ -231,6 +231,10 @@ def exec_command(comm):
                 if j == comm.split(" ")[0]:
                     os.system(f"{i}/{j} {' '.join(comm.split(' ')[1:])}")
                     return
+        for i in os.listdir(jb_ext_path):
+            if i == commname:
+                load_extension(i)
+                exec_command(comm)
         if comm == "":
             return
         print("Command not found")
