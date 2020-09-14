@@ -13,8 +13,8 @@ except:
     print("[JOBOX:WARN] Arrow keys will not work properly unless you are root. You also might not have the keyboard module installed; run sudo python3 -m pip install keyboard if this is the case.")
     USE_KEYBOARD = False
 
-VERSION = "0.6.4-beta"
-REVISION_NUMBER = 10 #Used for checking compatibility
+VERSION = "0.6.5-beta"
+REVISION_NUMBER = 11 #Used for checking compatibility
 
 JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
 JB_MAX_HISTORY = 20 #Amount of commands to be remembnered in history
