@@ -316,7 +316,6 @@ def _jobox_init_builtin(posargs, optargs):
             print("jbsafety cannot be disabled if you are nesting JoBox sessions.")
     jb_init_context = "nested"
     if jbsafety:
-        JoboxBuiltin.__init__ = _null
         builtin_dec = _null
     if optargs["-c"] != None:
         exec_command(optargs["-c"])
