@@ -6,15 +6,15 @@ import types
 import copy
 import sys
 import marshal
-try:
-    import keyboard
-    USE_KEYBOARD = True
-except:
-    print("[JOBOX:WARN] Arrow keys will not work properly unless you are root. You also might not have the keyboard module installed; run sudo python3 -m pip install keyboard if this is the case.")
-    USE_KEYBOARD = False
+#try:
+#    import keyboard
+#    USE_KEYBOARD = True
+#except:
+#    print("[JOBOX:WARN] Arrow keys will not work properly unless you are root. You also might not have the keyboard module installed; run sudo python3 -m pip install keyboard if this is the case.")
+#    USE_KEYBOARD = False
 
-VERSION = "0.6.6-beta"
-REVISION_NUMBER = 12 #Used for checking compatibility
+VERSION = "0.6.7-beta"
+REVISION_NUMBER = 13 #Used for checking compatibility
 
 JB_EXEC_NAMES = ["jobox", "./jobox", "/usr/bin/jobox", "/bin/jobox", "jobox.py"]
 JB_MAX_HISTORY = 20 #Amount of commands to be remembnered in history
